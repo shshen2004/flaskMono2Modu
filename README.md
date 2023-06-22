@@ -1,5 +1,8 @@
 # flaskMono2Modu
 Scaling Flask for Modularity: Leveraging Blueprints for Development, Testing, and Deployment
+
+本文章由chatGPT生成，尚在修改審核中!!!
+
 Flask建立Web應用程序時，使用藍圖（Blueprint）是一種組織和管理路由的方便方法。藍圖允許你將相關的路由分組在一起，以便更好地組織和維護代碼。
 在這篇教學中，將向你展示如何使用Flask藍圖。
 
@@ -124,7 +127,85 @@ def logout():
 
 上述代碼定義了 `auth_blueprint` 藍圖中的兩個路由。`login` 路由處理使用者的登錄請求，並在驗證成功後將用戶名存儲在 session 中。`logout` 路由處理用戶的登出請求，從 session 中移除用戶名。
 
-最後，打開 `views.py` 文件，添加以下代碼：
+當使用 `request.form.get` 從表單中獲取數據時，我們應該採取適當的措施來防止 SQL 注入和跨站腳本攻擊。以下是一些常用的方法：
+
+1. 使用參數化查詢（Parameterized Queries）或預處理語句（Prepared Statements）：對於任何涉及數據庫查詢的操作，應該使用參數化查詢或預處理語句。這將通過將數據作為參數傳遞給數據庫驅動程序來防止 SQL 注入攻擊。使用 ORM（對象關係映射）庫如 SQLAlchemy 可以提供內置的參數化查詢支持。
+
+範例使用 SQLAlchemy 實現參數化查詢的方式如下：
 
 ```python
-from flask import render_template, session
+from flask import request
+from sqlalchemy import text
+
+@auth_blueprint.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        # 執行身份驗證邏輯，例如檢查用戶名和密碼是否有效
+        # ...
+        
+        # 假設驗證成功，將用戶名存儲在 session 中
+        session['username'] = username
+        return redirect('/home')
+    
+    return render_template('login.html')
+```
+
+2. 使用安全的 HTML 輸出：當在模板中呈現用戶輸入時，請使用安全的 HTML 輸出方法，如 `escape` 函數或模板引擎提供的自動 HTML 轉義功能。這將防止跨站腳本攻擊。
+
+範例使用 Flask 提供的 `escape` 函數實現安全的 HTML 輸出的方式如下：
+
+```python
+from flask import render_template, session, escape
+
+@auth_blueprint.route('/home')
+def home():
+    username = escape(session['username']) if 'username' in session else None
+    return render_template('home.html', username=username)
+```
+
+在上述代碼中，我們使用 `escape` 函數將用戶名進行安全的 HTML 轉義。
+
+請注意，這些方法只是一些基本的防護措施，你還應該根據具體的情況進行安全性評估並使用其他適當的防護措施。此外，建議閱讀 Flask 和相關庫的官方文檔以瞭解更多關於安全性的最佳實踐。
+
+請找到 `views.py` 文件，然後添加以下代碼：
+
+```python
+from flask import render_template, session, redirect, url_for
+from .auth import login_required
+
+@app.route('/home')
+@login_required
+def home():
+    username = session.get('username')
+    return render_template('home.html', username=username)
+
+@app.route('/about')
+def about():
+    return render_template('about.html')
+```
+
+上述代碼定義了兩個新的路由：`home` 和 `about`。其中，`home` 路由使用了一個自定義的裝飾器 `login_required`，該裝飾器用於驗證用戶是否已登錄。如果用戶未登錄，它將重定向到登錄頁面。這可以幫助確保只有登錄的用戶才能訪問 `home` 頁面。
+
+接下來，我們需要在 `auth.py` 文件中定義 `login_required` 裝飾器。請找到 `auth.py` 文件，並添加以下代碼：
+
+```python
+from functools import wraps
+from flask import session, redirect, url_for
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'username' not in session:
+            return redirect(url_for('auth.login'))
+        return f(*args, **kwargs)
+    return decorated_function
+```
+
+上述代碼定義了一個 `login_required` 裝飾器，該裝飾器檢查用戶是否已登錄。如果用戶未登錄，它將重定向到 `auth.login` 路由，即登錄頁面。
+
+現在，你可以在 `templates` 文件夾中創建 `home.html` 和 `about.html` 模板文件，並在其中編寫相應的 HTML 代碼。
+
+請注意，以上代碼僅提供了一個簡單的示例，你可以根據你的實際需求進一步擴展和修改它。同時，也建議閱讀 Flask 和相關庫的官方文檔以瞭解更多關於藍圖和會話管理的最佳實踐。
